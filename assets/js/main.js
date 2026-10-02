@@ -487,34 +487,72 @@
     var edgeSvg = document.createElementNS(NS, "svg");
     edgeSvg.setAttribute("class", "footer-edge");
     edgeSvg.setAttribute("aria-hidden", "true");
-    var glowPath = document.createElementNS(NS, "path");
-    glowPath.setAttribute("class", "footer-edge__glow");
-    var corePath = document.createElementNS(NS, "path");
-    corePath.setAttribute("class", "footer-edge__core");
-    [glowPath, corePath].forEach(function (p) { p.setAttribute("pathLength", "1"); edgeSvg.appendChild(p); });
+    /* stacked strokes, all centred on the same point: long faint halo layers
+       and a short bright core give a light that softens towards both ends */
+    var LAYERS = [
+      { w: 12, a: 0.10, len: 0.20, c: "#FF8C3A" },
+      { w: 7,  a: 0.18, len: 0.15, c: "#FF8C3A" },
+      { w: 4,  a: 0.32, len: 0.10, c: "#FF9F57" },
+      { w: 2.2, a: 0.65, len: 0.065, c: "#FFB27A" },
+      { w: 1.4, a: 1,   len: 0.035, c: "#FFE2C8" }
+    ];
+    var edgePaths = LAYERS.map(function (L) {
+      var p = document.createElementNS(NS, "path");
+      p.setAttribute("pathLength", "1");
+      p.setAttribute("stroke", L.c);
+      p.setAttribute("stroke-width", L.w);
+      p.setAttribute("stroke-opacity", L.a);
+      p.setAttribute("stroke-dasharray", L.len + " 3");
+      edgeSvg.appendChild(p);
+      return p;
+    });
     edgeFoot.insertBefore(edgeSvg, edgeFoot.firstChild);
 
+    var fadeLen = 0.05;   /* share of the path over which the light fades in / out */
     var drawEdge = function () {
       var w = edgeFoot.clientWidth;
       var r = parseFloat(getComputedStyle(edgeFoot).borderTopLeftRadius) || 0;
-      var drop = Math.max(r, 24) * 1.6;      /* how far down the sides the light travels */
-      var i = 1.25;                          /* inset so the stroke sits on the edge */
-      var h = Math.ceil(drop + 4);
+      var i = 1;
+      var rr = Math.max(0, r - i);
+      var drop = Math.max(rr + 40, 64);
+      var h = Math.ceil(drop + 8);
       edgeSvg.setAttribute("viewBox", "0 0 " + w + " " + h);
       edgeSvg.style.height = h + "px";
-      var rr = Math.max(0, r - i);
-      var d = "M " + i + " " + drop +
-        " L " + i + " " + (i + rr) +
+      var d = "M " + i + " " + drop + " L " + i + " " + (i + rr) +
         (rr ? " A " + rr + " " + rr + " 0 0 1 " + (i + rr) + " " + i : "") +
         " L " + (w - i - rr) + " " + i +
         (rr ? " A " + rr + " " + rr + " 0 0 1 " + (w - i) + " " + (i + rr) : "") +
         " L " + (w - i) + " " + drop;
-      glowPath.setAttribute("d", d);
-      corePath.setAttribute("d", d);
+      edgePaths.forEach(function (p) { p.setAttribute("d", d); });
+      /* fade across each straight side plus half of the corner curve */
+      var side = drop - i - rr, arc = Math.PI * rr / 2, top = w - 2 * i - 2 * rr;
+      fadeLen = (side + arc * 0.6) / (2 * side + 2 * arc + top);
     };
     drawEdge();
     if ("ResizeObserver" in window) new ResizeObserver(drawEdge).observe(edgeFoot);
     else window.addEventListener("resize", drawEdge);
+
+    var EDGE_MS = 7000, edgeStart = performance.now(), edgeRaf = 0, edgeOn = false;
+    var ease = function (x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+    var edgeFrame = function (now) {
+      var c = ((now - edgeStart) % EDGE_MS) / EDGE_MS;   /* centre of the light, 0..1 */
+      var env = Math.min(ease(c / fadeLen), ease((1 - c) / fadeLen));
+      edgeSvg.style.opacity = env.toFixed(3);
+      for (var k = 0; k < edgePaths.length; k++) {
+        edgePaths[k].style.strokeDashoffset = (LAYERS[k].len / 2 - c).toFixed(5);
+      }
+      edgeRaf = edgeOn ? requestAnimationFrame(edgeFrame) : 0;
+    };
+    var setEdge = function (on) {
+      on = on && !document.hidden;
+      if (on && !edgeOn) { edgeOn = true; edgeRaf = requestAnimationFrame(edgeFrame); }
+      if (!on) { edgeOn = false; cancelAnimationFrame(edgeRaf); }
+    };
+    var edgeVisible = true;
+    document.addEventListener("visibilitychange", function () { setEdge(edgeVisible); });
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(function (en) { edgeVisible = en[0].isIntersecting; setEdge(edgeVisible); }).observe(edgeFoot);
+    } else setEdge(true);
   }
 
   /* ------------------------------------------------------------------------

@@ -2369,20 +2369,6 @@ p + p { margin-top: 1em; }
 .footer-edge path {
   fill: none;
   stroke-linecap: round;
-  stroke-dasharray: 0.14 0.86;
-  animation: footer-edge-run 6s linear infinite;
+  stroke-linejoin: round;
 }
-.footer-edge__glow {
-  stroke: rgba(255, 140, 58, 0.8);
-  stroke-width: 9;
-  filter: blur(6px);
-}
-.footer-edge__core {
-  stroke: #FFC293;
-  stroke-width: 2.5;
-  filter: drop-shadow(0 0 4px rgba(255, 140, 58, 0.95));
-}
-@keyframes footer-edge-run {
-  from { stroke-dashoffset: 0.14; }
-  to   { stroke-dashoffset: -1; }
-}
+
