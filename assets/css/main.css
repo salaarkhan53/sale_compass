@@ -44,7 +44,7 @@
 
   /* Space & shape */
   --gutter: clamp(16px, 4vw, 40px);
-  --container: 1200px;
+  --container: clamp(1200px, 78vw, 1720px);
   --section: clamp(72px, 9vw, 136px);
   --radius-sm: 10px;
   --radius: 18px;
@@ -402,7 +402,7 @@ p + p { margin-top: 1em; }
 .header-shell > .container { transition: padding 0.6s var(--ease); }
 
 .site-header.is-scrolled .header-shell {
-  max-width: min(1240px, calc(100% - 28px));
+  max-width: min(calc(var(--container) + 40px), calc(100% - 28px));
   margin-top: 12px;
   height: 62px;
   border-radius: 999px;
@@ -670,7 +670,7 @@ p + p { margin-top: 1em; }
 
 .home-hero__content {
   text-align: center;
-  max-width: 1020px;
+  max-width: 64rem;
   margin-inline: auto;
 }
 .home-hero h1 {
@@ -703,7 +703,7 @@ p + p { margin-top: 1em; }
 }
 .hero-visual__frame {
   position: relative;
-  max-width: 1080px;
+  max-width: min(1080px + (100vw - 1440px) * 0.4, 1400px);
   margin-inline: auto;
   border-radius: clamp(14px, 2vw, 26px);
   padding: clamp(6px, 0.8vw, 10px);
@@ -2313,3 +2313,43 @@ p + p { margin-top: 1em; }
   .home-hero .eyebrow { margin-bottom: 10px; }
   .hero-cta { margin-top: 20px; }
 }
+
+/* --------------------------------------------------------------------------
+   Large screens: scale type and spacing up gently so the page fills the view
+   -------------------------------------------------------------------------- */
+@media (min-width: 1800px) { html { font-size: 106.25%; } }
+@media (min-width: 2200px) { html { font-size: 112.5%; } }
+@media (min-width: 2800px) { html { font-size: 125%; } }
+
+/* --------------------------------------------------------------------------
+   Home: "Who We Are" illustration (transparent artwork, soft orange glow)
+   -------------------------------------------------------------------------- */
+.who-visual {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+}
+.who-visual__glow {
+  position: absolute;
+  z-index: -1;
+  inset: 6% 4%;
+  border-radius: 50%;
+  background:
+    radial-gradient(closest-side, rgba(255, 140, 58, 0.30), rgba(255, 140, 58, 0.12) 55%, transparent 100%);
+  filter: blur(26px);
+  animation: who-glow 7s ease-in-out infinite alternate;
+}
+@keyframes who-glow { from { transform: scale(0.94); opacity: 0.85; } to { transform: scale(1.04); opacity: 1; } }
+.who-visual__float { width: 100%; animation: who-float 8s ease-in-out infinite alternate; }
+.who-visual__float img { width: 100%; filter: drop-shadow(0 30px 40px rgba(11, 23, 48, 0.18)); }
+@keyframes who-float { from { transform: translateY(-6px); } to { transform: translateY(8px); } }
+
+/* --------------------------------------------------------------------------
+   Home: tighter vertical rhythm (about 30% less empty space)
+   -------------------------------------------------------------------------- */
+.header-on-dark .section { padding-block: calc(var(--section) * 0.7); }
+.header-on-dark .home-hero { padding-bottom: clamp(40px, 5vw, 80px); }
+.header-on-dark .section-head { margin-bottom: clamp(32px, 3.6vw, 52px); }
+.header-on-dark .contrast { margin-top: clamp(36px, 4.5vw, 64px); }
+.header-on-dark .statement__body .lead--display { margin-bottom: 22px; }

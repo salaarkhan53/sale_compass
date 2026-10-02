@@ -1,3 +1,6 @@
 .vscode/
 .DS_Store
 Thumbs.db
+
+# raw uploads (originals with spaces in the name); the site uses the optimised .webp versions
+assets/img/* *
