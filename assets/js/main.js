@@ -478,6 +478,46 @@
   initSparks(document.querySelector(".site-footer"), 9000, 140);
 
   /* ------------------------------------------------------------------------
+     Footer edge light: an orange glow that travels along the footer's top
+     edge, curving through both rounded corners, in a loop
+     ------------------------------------------------------------------------ */
+  var edgeFoot = document.querySelector(".site-footer");
+  if (edgeFoot && !reduceMotion) {
+    var NS = "http://www.w3.org/2000/svg";
+    var edgeSvg = document.createElementNS(NS, "svg");
+    edgeSvg.setAttribute("class", "footer-edge");
+    edgeSvg.setAttribute("aria-hidden", "true");
+    var glowPath = document.createElementNS(NS, "path");
+    glowPath.setAttribute("class", "footer-edge__glow");
+    var corePath = document.createElementNS(NS, "path");
+    corePath.setAttribute("class", "footer-edge__core");
+    [glowPath, corePath].forEach(function (p) { p.setAttribute("pathLength", "1"); edgeSvg.appendChild(p); });
+    edgeFoot.insertBefore(edgeSvg, edgeFoot.firstChild);
+
+    var drawEdge = function () {
+      var w = edgeFoot.clientWidth;
+      var r = parseFloat(getComputedStyle(edgeFoot).borderTopLeftRadius) || 0;
+      var drop = Math.max(r, 24) * 1.6;      /* how far down the sides the light travels */
+      var i = 1.25;                          /* inset so the stroke sits on the edge */
+      var h = Math.ceil(drop + 4);
+      edgeSvg.setAttribute("viewBox", "0 0 " + w + " " + h);
+      edgeSvg.style.height = h + "px";
+      var rr = Math.max(0, r - i);
+      var d = "M " + i + " " + drop +
+        " L " + i + " " + (i + rr) +
+        (rr ? " A " + rr + " " + rr + " 0 0 1 " + (i + rr) + " " + i : "") +
+        " L " + (w - i - rr) + " " + i +
+        (rr ? " A " + rr + " " + rr + " 0 0 1 " + (w - i) + " " + (i + rr) : "") +
+        " L " + (w - i) + " " + drop;
+      glowPath.setAttribute("d", d);
+      corePath.setAttribute("d", d);
+    };
+    drawEdge();
+    if ("ResizeObserver" in window) new ResizeObserver(drawEdge).observe(edgeFoot);
+    else window.addEventListener("resize", drawEdge);
+  }
+
+  /* ------------------------------------------------------------------------
      Justify paragraphs that run longer than two lines
      ------------------------------------------------------------------------ */
   var paras = Array.prototype.slice.call(document.querySelectorAll("main p"));
