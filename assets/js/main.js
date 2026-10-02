@@ -482,65 +482,101 @@
      edge, curving through both rounded corners, in a loop
      ------------------------------------------------------------------------ */
   var edgeFoot = document.querySelector(".site-footer");
-  if (edgeFoot && !reduceMotion) {
-    var NS = "http://www.w3.org/2000/svg";
-    var edgeSvg = document.createElementNS(NS, "svg");
-    edgeSvg.setAttribute("class", "footer-edge");
-    edgeSvg.setAttribute("aria-hidden", "true");
-    /* stacked strokes, all centred on the same point: long faint halo layers
-       and a short bright core give a light that softens towards both ends */
-    var LAYERS = [
-      { w: 12, a: 0.10, len: 0.20, c: "#FF8C3A" },
-      { w: 7,  a: 0.18, len: 0.15, c: "#FF8C3A" },
-      { w: 4,  a: 0.32, len: 0.10, c: "#FF9F57" },
-      { w: 2.2, a: 0.65, len: 0.065, c: "#FFB27A" },
-      { w: 1.4, a: 1,   len: 0.035, c: "#FFE2C8" }
+  var edgeCanvas = edgeFoot && !reduceMotion && document.createElement("canvas");
+  if (edgeCanvas && edgeCanvas.getContext) {
+    edgeCanvas.className = "footer-edge";
+    edgeCanvas.setAttribute("aria-hidden", "true");
+    edgeFoot.insertBefore(edgeCanvas, edgeFoot.firstChild);
+    var ectx = edgeCanvas.getContext("2d");
+    var edpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    /* layers of the light, widest/faintest first (10% slimmer than before) */
+    var ELAYERS = [
+      { w: 9.7, a: 0.09, c: "255,140,58" },
+      { w: 5.4, a: 0.2,  c: "255,140,58" },
+      { w: 2.7, a: 0.45, c: "255,170,110" },
+      { w: 1.3, a: 1,    c: "255,228,205" }
     ];
-    var edgePaths = LAYERS.map(function (L) {
-      var p = document.createElementNS(NS, "path");
-      p.setAttribute("pathLength", "1");
-      p.setAttribute("stroke", L.c);
-      p.setAttribute("stroke-width", L.w);
-      p.setAttribute("stroke-opacity", L.a);
-      p.setAttribute("stroke-dasharray", L.len + " 3");
-      edgeSvg.appendChild(p);
-      return p;
-    });
-    edgeFoot.insertBefore(edgeSvg, edgeFoot.firstChild);
+    var EW = 0, EH = 0, inset = 1.2, rad = 0, arcLen = 0, topLen = 0, total = 0, trail = 0, fadeIn = 0, fadeOut = 0;
 
-    var fadeLen = 0.05;   /* share of the path over which the light fades in / out */
-    var drawEdge = function () {
-      var w = edgeFoot.clientWidth;
-      var r = parseFloat(getComputedStyle(edgeFoot).borderTopLeftRadius) || 0;
-      var i = 1;
-      var rr = Math.max(0, r - i);
-      var drop = Math.max(rr + 40, 64);
-      var h = Math.ceil(drop + 8);
-      edgeSvg.setAttribute("viewBox", "0 0 " + w + " " + h);
-      edgeSvg.style.height = h + "px";
-      var d = "M " + i + " " + drop + " L " + i + " " + (i + rr) +
-        (rr ? " A " + rr + " " + rr + " 0 0 1 " + (i + rr) + " " + i : "") +
-        " L " + (w - i - rr) + " " + i +
-        (rr ? " A " + rr + " " + rr + " 0 0 1 " + (w - i) + " " + (i + rr) : "") +
-        " L " + (w - i) + " " + drop;
-      edgePaths.forEach(function (p) { p.setAttribute("d", d); });
-      /* fade across each straight side plus half of the corner curve */
-      var side = drop - i - rr, arc = Math.PI * rr / 2, top = w - 2 * i - 2 * rr;
-      fadeLen = (side + arc * 0.6) / (2 * side + 2 * arc + top);
-    };
-    drawEdge();
-    if ("ResizeObserver" in window) new ResizeObserver(drawEdge).observe(edgeFoot);
-    else window.addEventListener("resize", drawEdge);
-
-    var EDGE_MS = 7000, edgeStart = performance.now(), edgeRaf = 0, edgeOn = false;
-    var ease = function (x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
-    var edgeFrame = function (now) {
-      var c = ((now - edgeStart) % EDGE_MS) / EDGE_MS;   /* centre of the light, 0..1 */
-      var env = Math.min(ease(c / fadeLen), ease((1 - c) / fadeLen));
-      edgeSvg.style.opacity = env.toFixed(3);
-      for (var k = 0; k < edgePaths.length; k++) {
-        edgePaths[k].style.strokeDashoffset = (LAYERS[k].len / 2 - c).toFixed(5);
+    /* point at distance s along: left corner arc -> top edge -> right corner arc */
+    var pointAt = function (s) {
+      var cyy = inset + rad;
+      if (s <= arcLen && rad > 0) {
+        var t = Math.PI + (s / arcLen) * (Math.PI / 2);
+        return [inset + rad + rad * Math.cos(t), cyy + rad * Math.sin(t)];
       }
+      s -= arcLen;
+      if (s <= topLen) return [inset + rad + s, inset];
+      s -= topLen;
+      if (rad > 0) {
+        var t2 = -Math.PI / 2 + (Math.min(s, arcLen) / arcLen) * (Math.PI / 2);
+        return [EW - inset - rad + rad * Math.cos(t2), cyy + rad * Math.sin(t2)];
+      }
+      return [EW - inset, inset];
+    };
+    var smooth = function (x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+    /* positional fade: light appears through the left curve and is gone just
+       before the end of the right curve */
+    var mask = function (s) {
+      return smooth(s / fadeIn) * smooth((total - arcLen * 0.12 - s) / fadeOut);
+    };
+
+    var sizeEdge = function () {
+      EW = edgeFoot.clientWidth;
+      var r = parseFloat(getComputedStyle(edgeFoot).borderTopLeftRadius) || 0;
+      rad = Math.max(0, r - inset);
+      arcLen = rad * Math.PI / 2;
+      topLen = EW - 2 * inset - 2 * rad;
+      total = 2 * arcLen + topLen;
+      trail = Math.min(320, Math.max(160, EW * 0.17));
+      fadeIn = rad > 0 ? arcLen * 0.85 : 70;
+      fadeOut = rad > 0 ? arcLen * 0.75 : 70;
+      EH = Math.ceil(inset + rad + 12);
+      edgeCanvas.width = Math.round(EW * edpr);
+      edgeCanvas.height = Math.round(EH * edpr);
+      edgeCanvas.style.width = EW + "px";
+      edgeCanvas.style.height = EH + "px";
+      ectx.setTransform(edpr, 0, 0, edpr, 0, 0);
+      ectx.lineCap = "round";
+    };
+    sizeEdge();
+
+    var SPEED = 300;                 /* px per second, constant */
+    var STEP = 2;                    /* px between drawn segments */
+    var drawEdge = function (head) {
+      ectx.clearRect(0, 0, EW, EH);
+      for (var L = 0; L < ELAYERS.length; L++) {
+        var layer = ELAYERS[L];
+        ectx.lineWidth = layer.w;
+        var prev = null;
+        for (var d = trail; d >= 0; d -= STEP) {
+          var s = head - d;
+          if (s < 0 || s > total) { prev = null; continue; }
+          var pt = pointAt(s);
+          if (prev) {
+            var t = 1 - d / trail;                          /* 0 tail .. 1 head */
+            var shape = Math.pow(t, 1.6) * smooth((1 - t) / 0.06);
+            var al = layer.a * shape * mask(s);
+            if (al > 0.003) {
+              ectx.strokeStyle = "rgba(" + layer.c + "," + al.toFixed(3) + ")";
+              ectx.beginPath();
+              ectx.moveTo(prev[0], prev[1]);
+              ectx.lineTo(pt[0], pt[1]);
+              ectx.stroke();
+            }
+          }
+          prev = pt;
+        }
+      }
+    };
+
+    var edgeT0 = null, edgeRaf = 0, edgeOn = false;
+    var edgeFrame = function (now) {
+      if (edgeT0 === null) edgeT0 = now;
+      var cycle = total + trail;
+      var head = (((now - edgeT0) / 1000) * SPEED) % cycle;
+      drawEdge(head);
       edgeRaf = edgeOn ? requestAnimationFrame(edgeFrame) : 0;
     };
     var setEdge = function (on) {
@@ -548,8 +584,9 @@
       if (on && !edgeOn) { edgeOn = true; edgeRaf = requestAnimationFrame(edgeFrame); }
       if (!on) { edgeOn = false; cancelAnimationFrame(edgeRaf); }
     };
-    var edgeVisible = true;
+    var edgeVisible = true, edgeW = EW;
     document.addEventListener("visibilitychange", function () { setEdge(edgeVisible); });
+    window.addEventListener("resize", function () { if (edgeFoot.clientWidth !== edgeW) { edgeW = edgeFoot.clientWidth; sizeEdge(); } });
     if ("IntersectionObserver" in window) {
       new IntersectionObserver(function (en) { edgeVisible = en[0].isIntersecting; setEdge(edgeVisible); }).observe(edgeFoot);
     } else setEdge(true);
